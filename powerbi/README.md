@@ -1,25 +1,26 @@
-# Power BI suite
+# Power BI reference materials (not distributed)
 
-## Contents
+## Privacy notice
+
+**Due to privacy reasons**, the Power BI Desktop report file (`.pbix` / `.pbip`) is **not published** in this GitHub repository.
+
+The executive deliverable is the PDF dashboard:
+
+**[`docs/executive-dashboard.pdf`](../docs/executive-dashboard.pdf)**
+
+See [`docs/PRIVACY.md`](../docs/PRIVACY.md).
+
+---
+
+## What this folder contains
+
+Reference assets for rebuilding the model locally — **documentation only**:
 
 | Asset | Purpose |
 |-------|---------|
 | [`dax/measures.dax`](dax/measures.dax) | Executive KPI & trend measures |
 | [`power-query/load_star_schema.m`](power-query/load_star_schema.m) | M template for CSV load |
-| [`report/executive-dashboard-spec.md`](report/executive-dashboard-spec.md) | Page layout, theme, slicers, bookmarks |
+| [`report/executive-dashboard-spec.md`](report/executive-dashboard-spec.md) | Page layout, theme, slicers |
+| [`theme/executive-dark.json`](theme/executive-dark.json) | Dark theme JSON |
 
-## Quick import
-
-1. Clone repo and run `python scripts/generate_data.py`
-2. Open **Power BI Desktop** → Get data from `data/` CSVs
-3. Model view → create relationships (see `docs/data-model.md`)
-4. **Modeling** → New measure → paste from `measures.dax`
-5. Build report per `report/executive-dashboard-spec.md`
-
-## Semantic model name
-
-`Broadband_Adoption_Executive`
-
-## Privacy
-
-Sample data and provider names are **fully synthetic**. No real operator or employer branding is used.
+These files describe how the dashboard was designed; they do not replace the PDF portfolio artifact.
