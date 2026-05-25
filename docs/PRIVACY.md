@@ -19,7 +19,7 @@ Publishing a `.pbix` file could expose:
 | DAX / M reference (build-your-own) | `powerbi/` (documentation only) |
 | Dashboard layout specification | `powerbi/report/executive-dashboard-spec.md` |
 
-The PDF is the **portfolio-facing executive view** — a pixel-faithful replica of a professional telecom BI dashboard (de-identified as **ConnectOne Business Intelligence**), including Mgmt Area analysis, HSD Balance, and standard lift/MRC KPIs.
+The PDF is the **portfolio-facing executive view** — a pixel-faithful replica of a professional telecom BI dashboard (de-identified as **NeatFiber X Business Intelligence**), including Mgmt Area analysis, HSD Balance, and standard lift/MRC KPIs.
 
 ## Data in this repo
 

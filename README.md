@@ -12,7 +12,7 @@
 
 ### [Download Executive Dashboard PDF](docs/executive-dashboard.pdf)
 
-The PDF replicates the **exact executive BI layout** (blue sidebar, 4 KPI cards, 8 slicers, tab bar, Mgmt Area table + horizontal bar chart). Company branding is **ConnectOne Business Intelligence** (de-identified — not the original operator).
+The PDF replicates the **exact executive BI layout** (blue sidebar, 4 KPI cards, 8 slicers, tab bar, Mgmt Area table + horizontal bar chart). Company branding is **NeatFiber X Business Intelligence** (de-identified — not the original operator).
 
 Includes:
 
