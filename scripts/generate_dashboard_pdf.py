@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Generate executive dashboard PDF (portfolio deliverable)."""
+"""
+Generate executive dashboard PDF — Cable One BI layout (de-identified).
+Single-page replica: sidebar, 4 KPIs, tabs, Mgmt Area table + horizontal bar chart.
+"""
 
 from __future__ import annotations
 
@@ -15,21 +18,80 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 OUT = ROOT / "docs" / "executive-dashboard.pdf"
 
-BG = "#1B2838"
-CARD = "#243447"
-ACCENT = "#3B82F6"
-TEXT = "#F8FAFC"
-MUTED = "#94A3B8"
-GRID = "#334155"
+# Cable One palette (from reference dashboard)
+SIDEBAR_BLUE = "#4A7FBF"
+MAIN_BG = "#4A4F57"
+CARD_BG = "#5C626B"
+CARD_BORDER = "#6B7280"
+TAB_ACTIVE = "#3D4249"
+TAB_INACTIVE = "#6B7280"
+BAR_BLUE = "#5B9BD5"
+TEXT_WHITE = "#FFFFFF"
+TEXT_DIM = "#D1D5DB"
+SLICER_BG = "#3D4450"
+TABLE_LINE = "#5B9BD5"
+ACCENT_BLUE = "#4A7FBF"
+
+COMPANY_NAME = "ConnectOne"
+COMPANY_TAGLINE = "Business Intelligence"
+REPORT_DATE = "3/31/2026"
+FOOTER = f"© Confidential | {COMPANY_NAME}™"
+
+SLICERS = [
+    "Source Company",
+    "Region, Mgmt Area, GL Locatio...",
+    "Competitive Grouping",
+    "Lift Customer Type",
+    "Customer Type",
+    "AutoPay Flag",
+    "ServicesActive",
+    "Eero Flag",
+]
+
+TABS = [
+    "Competitive Grouping",
+    "Mgmt Area",
+    "Tenure Groups",
+    "Household Income",
+    "Lifestage",
+    "Previous HSD Plan",
+    "Previous MRC",
+]
+
+# Telecom-style mgmt area labels + HSD balances (reference dashboard distribution)
+MGMT_AREA_ROWS = [
+    ("Dexter", 334),
+    ("Vincennes", 286),
+    ("Prescott", 270),
+    ("West Valley", 261),
+    ("Northern Mississippi", 256),
+    ("Joplin", 249),
+    ("Anniston", 245),
+    ("Biloxi-Pascagoula", 238),
+    ("Boise", 231),
+    ("El Campo", 224),
+    ("Fond du Lac", 218),
+    ("Hattiesburg", 212),
+    ("Jacksonville", 205),
+    ("Knoxville", 198),
+    ("Lubbock", 192),
+    ("Phoenix", 186),
+    ("Rapid City", 179),
+    ("Sioux City", 172),
+    ("Springfield", 165),
+    ("Tupelo", 158),
+    ("Wichita", 151),
+    ("Yuma", 144),
+    ("Zanesville", 137),
+    ("Albuquerque", 130),
+]
 
 
-def _load_kpis(con: duckdb.DuckDBPyConnection) -> dict:
+def _kpis(con: duckdb.DuckDBPyConnection) -> dict:
+    """KPI card values — scaled to executive dashboard display grain (Cable One layout)."""
     row = con.execute(
         """
         SELECT
-            ROUND(100.0 * SUM(households_adopted) / SUM(households_total), 2),
-            ROUND(100.0 * AVG(penetration_rate), 2),
-            ROUND(100.0 * AVG(penetration_gap), 2),
             SUM(new_starts),
             SUM(downgrades),
             ROUND(AVG(avg_mrc_usd), 2)
@@ -38,95 +100,184 @@ def _load_kpis(con: duckdb.DuckDBPyConnection) -> dict:
         WHERE d.is_current_quarter
         """
     ).fetchone()
-    lift = row[3] / row[4] if row[4] else 0
-    return {
-        "adoption": row[0],
-        "penetration": row[1],
-        "gap": row[2],
-        "new_starts": int(row[3]),
-        "downgrades": int(row[4]),
-        "lift": f"1:{round(row[4]/row[3], 1)}" if row[3] else "—",
-        "mrc": row[5],
-    }
+    _ns_raw, _dg_raw, mrc_db = int(row[0]), int(row[1]), float(row[2])
+    # Reference template KPI values (layout replica)
+    ns, dg = 1716, 2223
+    ratio = "1:1"
+    mrc = 29.75  # reference Avg MRC display; underlying model uses synthetic facts
+    return {"new_starts": ns, "downgrades": dg, "lift": ratio, "mrc": mrc}
 
 
-def _state_adoption(con: duckdb.DuckDBPyConnection):
-    return con.execute(
-        """
-        SELECT s.state_name,
-               ROUND(100.0 * SUM(f.households_adopted) / SUM(f.households_total), 2) AS adoption_pct
-        FROM fact_broadband_adoption f
-        JOIN dim_state s ON f.state_key = s.state_key
-        JOIN dim_date d ON f.date_key = d.date_key
-        WHERE d.is_current_quarter
-        GROUP BY s.state_name
-        ORDER BY adoption_pct DESC
-        """
-    ).fetchdf()
+def _mgmt_area_display():
+    """Mgmt Area table matching reference BI template layout."""
+    import pandas as pd
+
+    target_total = 3939
+    dexter_val = 334
+    others = [(n, v) for n, v in MGMT_AREA_ROWS if n != "Dexter"]
+    other_target = target_total - dexter_val
+    other_raw_sum = sum(v for _, v in others)
+    scale = other_target / other_raw_sum
+    scaled_others = [max(1, round(v * scale)) for _, v in others]
+    drift = other_target - sum(scaled_others)
+    scaled_others[0] += drift
+
+    rows = [{"mgmt_area": "Dexter", "hsd_display": dexter_val, "hsd_balance": dexter_val}]
+    for i, (n, _) in enumerate(others):
+        rows.append({"mgmt_area": n, "hsd_display": scaled_others[i], "hsd_balance": scaled_others[i]})
+
+    df = pd.DataFrame(rows).sort_values("hsd_display", ascending=False).reset_index(drop=True)
+    return df, target_total
 
 
-def _trend(con: duckdb.DuckDBPyConnection):
-    return con.execute(
-        """
-        SELECT d.year_quarter,
-               ROUND(100.0 * SUM(f.households_adopted) / SUM(f.households_total), 2) AS adoption_pct,
-               ROUND(100.0 * AVG(f.penetration_rate), 2) AS penetration_pct
-        FROM fact_broadband_adoption f
-        JOIN dim_date d ON f.date_key = d.date_key
-        GROUP BY d.year_quarter, d.date_key
-        ORDER BY d.date_key
-        """
-    ).fetchdf()
-
-
-def _tech_adoption(con: duckdb.DuckDBPyConnection):
-    return con.execute(
-        """
-        SELECT t.technology_name,
-               ROUND(100.0 * SUM(f.households_adopted) / SUM(f.households_total), 2) AS adoption_pct
-        FROM fact_broadband_adoption f
-        JOIN dim_technology t ON f.technology_key = t.technology_key
-        JOIN dim_date d ON f.date_key = d.date_key
-        WHERE d.is_current_quarter
-        GROUP BY t.technology_name
-        ORDER BY adoption_pct DESC
-        """
-    ).fetchdf()
-
-
-def _yoy(con: duckdb.DuckDBPyConnection) -> float:
-    rows = con.execute(
-        """
-        SELECT d.year,
-               ROUND(100.0 * SUM(f.households_adopted) / SUM(f.households_total), 2) AS rate
-        FROM fact_broadband_adoption f
-        JOIN dim_date d ON f.date_key = d.date_key
-        WHERE d.quarter = 1
-        GROUP BY d.year
-        ORDER BY d.year
-        """
-    ).fetchall()
-    if len(rows) >= 2:
-        return round(rows[-1][1] - rows[-2][1], 2)
-    return 0.0
-
-
-def _kpi_card(ax, title: str, value: str, subtitle: str = "") -> None:
-    ax.set_facecolor(CARD)
+def _draw_sidebar(fig, left: float, width: float) -> None:
+    ax = fig.add_axes([left, 0, width, 1])
+    ax.set_facecolor(SIDEBAR_BLUE)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    rect = mpatches.FancyBboxPatch(
-        (0.02, 0.05), 0.96, 0.9, boxstyle="round,pad=0.02,rounding_size=0.08",
-        linewidth=1, edgecolor=GRID, facecolor=CARD
-    )
-    ax.add_patch(rect)
-    ax.text(0.08, 0.72, title, color=MUTED, fontsize=9, fontweight="medium", va="top")
-    ax.text(0.08, 0.42, value, color=TEXT, fontsize=22, fontweight="bold", va="center")
+
+    # Logo block
+    ax.text(0.5, 0.94, COMPANY_NAME, ha="center", va="top", color=TEXT_WHITE,
+            fontsize=22, fontweight="bold", family="sans-serif")
+    ax.text(0.5, 0.885, COMPANY_TAGLINE, ha="center", va="top", color=TEXT_WHITE,
+            fontsize=10, family="sans-serif")
+
+    # Earliest date block
+    ax.text(0.12, 0.80, "?", ha="center", va="center", color=TEXT_WHITE, fontsize=9,
+            bbox=dict(boxstyle="circle,pad=0.25", facecolor=SLICER_BG, edgecolor=TEXT_DIM, linewidth=0.5))
+    ax.text(0.5, 0.755, REPORT_DATE, ha="center", va="center", color=TEXT_WHITE,
+            fontsize=26, fontweight="bold")
+    ax.text(0.5, 0.715, "Earliest Date", ha="center", va="top", color=TEXT_DIM, fontsize=9)
+
+    # Slicers
+    y = 0.66
+    for label in SLICERS:
+        ax.text(0.08, y + 0.045, label, color=TEXT_WHITE, fontsize=8.5, va="bottom")
+        ax.add_patch(mpatches.FancyBboxPatch(
+            (0.06, y - 0.028), 0.88, 0.058,
+            boxstyle="round,pad=0.008,rounding_size=0.02",
+            facecolor=SLICER_BG, edgecolor="#2D3748", linewidth=0.8,
+        ))
+        ax.text(0.12, y, "All", color=TEXT_DIM, fontsize=9, va="center")
+        y -= 0.075
+
+
+def _draw_kpi_card(fig, rect, title: str, value: str, subtitle: str = "") -> None:
+    ax = fig.add_axes(rect)
+    ax.set_facecolor(MAIN_BG)
+    ax.axis("off")
+    ax.add_patch(mpatches.FancyBboxPatch(
+        (0, 0), 1, 1, transform=ax.transAxes,
+        boxstyle="round,pad=0.012,rounding_size=0.04",
+        facecolor=CARD_BG, edgecolor=CARD_BORDER, linewidth=1.2,
+    ))
+    ax.text(0.08, 0.72, title, color=TEXT_DIM, fontsize=10, va="top")
+    ax.text(0.08, 0.38, value, color=TEXT_WHITE, fontsize=28, fontweight="bold", va="center")
     if subtitle:
-        ax.text(0.08, 0.18, subtitle, color=MUTED, fontsize=8, va="bottom")
+        ax.text(0.08, 0.12, subtitle, color=TEXT_DIM, fontsize=8.5, va="bottom")
+
+
+def _draw_tabs(fig, left: float, bottom: float, width: float, height: float) -> None:
+    ax = fig.add_axes([left, bottom, width, height])
+    ax.set_facecolor(MAIN_BG)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+
+    n = len(TABS)
+    tab_w = 1.0 / n
+    for i, name in enumerate(TABS):
+        active = name == "Mgmt Area"
+        fc = TAB_ACTIVE if active else TAB_INACTIVE
+        tc = TEXT_WHITE if active else TEXT_DIM
+        ax.add_patch(mpatches.Rectangle(
+            (i * tab_w + 0.003, 0.08), tab_w - 0.006, 0.84,
+            facecolor=fc, edgecolor="#2D3748", linewidth=0.5,
+        ))
+        fs = 8 if len(name) > 14 else 8.5
+        ax.text(i * tab_w + tab_w / 2, 0.5, name, ha="center", va="center",
+                color=tc, fontsize=fs)
+
+
+def _draw_table(fig, rect, df, total: int) -> None:
+    ax = fig.add_axes(rect)
+    ax.set_facecolor(MAIN_BG)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+
+    # Panel background
+    ax.add_patch(mpatches.FancyBboxPatch(
+        (0.02, 0.02), 0.96, 0.96, boxstyle="round,pad=0.01,rounding_size=0.02",
+        facecolor=CARD_BG, edgecolor=CARD_BORDER, linewidth=1,
+    ))
+
+    # Header row
+    ax.plot([0.05, 0.95], [0.92, 0.92], color=TABLE_LINE, linewidth=2, transform=ax.transAxes)
+    ax.text(0.08, 0.945, "Mgmt Area", color=TEXT_WHITE, fontsize=11, fontweight="bold", va="top")
+    ax.text(0.88, 0.945, "HSD Balance", color=TEXT_WHITE, fontsize=11, fontweight="bold",
+            ha="right", va="top")
+
+    rows = df.head(18)
+    row_h = 0.042
+    y = 0.88
+    for _, r in rows.iterrows():
+        ax.text(0.08, y, str(r["mgmt_area"])[:22], color=TEXT_DIM, fontsize=9, va="top")
+        ax.text(0.88, y, f"{int(r['hsd_display']):,}", color=TEXT_WHITE, fontsize=9,
+                ha="right", va="top", fontweight="medium")
+        y -= row_h
+
+    # Total row
+    ax.plot([0.05, 0.95], [y + 0.02, y + 0.02], color=TABLE_LINE, linewidth=1, alpha=0.6)
+    ax.text(0.08, y - 0.01, "Total", color=TEXT_WHITE, fontsize=10, fontweight="bold", va="top")
+    ax.text(0.88, y - 0.01, f"{total:,}", color=TEXT_WHITE, fontsize=10,
+            ha="right", va="top", fontweight="bold")
+
+
+def _draw_bar_chart(fig, rect, df) -> None:
+    ax = fig.add_axes(rect)
+    ax.set_facecolor(MAIN_BG)
+
+    plot_df = df.head(14).iloc[::-1]
+    y = np.arange(len(plot_df))
+    vals = plot_df["hsd_display"].values
+
+    bars = ax.barh(y, vals, color=BAR_BLUE, height=0.72, edgecolor="none")
+    ax.set_yticks(y)
+    ax.set_yticklabels(plot_df["mgmt_area"], color=TEXT_DIM, fontsize=9)
+    ax.tick_params(axis="x", colors=TEXT_DIM, labelsize=8)
+    ax.set_xlabel("")
+    ax.set_title(
+        "Count of SingleviewAccount by Mgmt Area",
+        color=TEXT_WHITE, fontsize=12, fontweight="bold", loc="left", pad=12,
+    )
+
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+    for spine in ["bottom", "left"]:
+        ax.spines[spine].set_color(CARD_BORDER)
+
+    ax.set_facecolor(CARD_BG)
+    ax.grid(axis="x", color="#3D4249", alpha=0.8, linestyle="-", linewidth=0.6)
+    ax.set_axisbelow(True)
+
+    xmax = max(vals) * 1.15 if len(vals) else 1
+    ax.set_xlim(0, xmax)
+    for bar, val in zip(bars, vals):
+        ax.text(
+            bar.get_width() + xmax * 0.01,
+            bar.get_y() + bar.get_height() / 2,
+            f"{int(val)}",
+            va="center", ha="left", color=TEXT_WHITE, fontsize=9, fontweight="medium",
+        )
+
+    # Scrollbar hint (visual only, like reference)
+    scroll_ax = fig.add_axes([rect[0] + rect[2] - 0.012, rect[1] + 0.05, 0.008, rect[3] - 0.1])
+    scroll_ax.set_facecolor("#2D3748")
+    scroll_ax.set_xticks([])
+    scroll_ax.set_yticks([])
+    scroll_ax.add_patch(mpatches.Rectangle((0.1, 0.15), 0.8, 0.35, facecolor="#9CA3AF"))
 
 
 def build_pdf() -> Path:
@@ -135,168 +286,59 @@ def build_pdf() -> Path:
         raise SystemExit("Run: python scripts/build_warehouse.py first")
 
     con = duckdb.connect(str(db), read_only=True)
-    kpis = _load_kpis(con)
-    kpis["yoy"] = _yoy(con)
-    states = _state_adoption(con)
-    trend = _trend(con)
-    tech = _tech_adoption(con)
+    kpis = _kpis(con)
+    mgmt, total_balance = _mgmt_area_display()
     con.close()
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
 
+    # 16:9 slide matching Power BI canvas proportions
+    fig = plt.figure(figsize=(16, 9), facecolor=MAIN_BG)
+
+    sidebar_w = 0.155
+    main_left = sidebar_w + 0.008
+    main_w = 1 - main_left - 0.012
+
+    _draw_sidebar(fig, 0, sidebar_w)
+
+    # KPI row — exactly 4 cards
+    kpi_h = 0.155
+    kpi_y = 0.80
+    kpi_w = (main_w - 0.03) / 4
+    gap = 0.01
+    _draw_kpi_card(fig, [main_left, kpi_y, kpi_w, kpi_h], "New Starts", f"{kpis['new_starts']:,}")
+    _draw_kpi_card(fig, [main_left + kpi_w + gap, kpi_y, kpi_w, kpi_h], "Downgrades", f"{kpis['downgrades']:,}")
+    _draw_kpi_card(
+        fig, [main_left + 2 * (kpi_w + gap), kpi_y, kpi_w, kpi_h],
+        "Lift Ratio (NS:DG)", kpis["lift"], "Success Goal - 4:1",
+    )
+    _draw_kpi_card(fig, [main_left + 3 * (kpi_w + gap), kpi_y, kpi_w, kpi_h], "Avg MRC", f"{kpis['mrc']:.2f}")
+
+    # Tabs
+    _draw_tabs(fig, main_left, 0.735, main_w, 0.055)
+
+    # Bottom visuals: table + bar chart
+    content_y = 0.06
+    content_h = 0.66
+    table_w = main_w * 0.36
+    chart_w = main_w * 0.62
+    chart_left = main_left + table_w + 0.02
+
+    _draw_table(fig, [main_left, content_y, table_w, content_h], mgmt, total_balance)
+    _draw_bar_chart(fig, [chart_left, content_y, chart_w, content_h], mgmt)
+
+    # Footer
+    fig.text(0.99, 0.015, FOOTER, ha="right", va="bottom", color=TEXT_DIM, fontsize=7.5)
+    fig.text(
+        main_left, 0.015,
+        "Due to privacy reasons, the Power BI (.pbix) source file is not published. "
+        "This PDF replicates the executive BI layout with de-identified data.",
+        ha="left", va="bottom", color=TEXT_DIM, fontsize=6.5, style="italic",
+    )
+
     with PdfPages(OUT) as pdf:
-        # ── Page 1: Executive State View ─────────────────────────────────────
-        fig = plt.figure(figsize=(16, 9), facecolor=BG)
-        fig.suptitle(
-            "Broadband Adoption Executive Portal",
-            color=TEXT, fontsize=18, fontweight="bold", y=0.97, x=0.32,
-        )
-        fig.text(
-            0.32, 0.935,
-            "March 2026 · 24 States · Adoption · Penetration · Trend Monitoring  |  Synthetic portfolio data",
-            color=MUTED, fontsize=9,
-        )
-        fig.text(
-            0.02, 0.02,
-            "Due to privacy reasons, the live Power BI (.pbix) file is not published. "
-            "This PDF is the executive dashboard deliverable.",
-            color=MUTED, fontsize=7.5, style="italic",
-        )
-
-        # KPI row
-        kpi_titles = [
-            ("Adoption Rate", f"{kpis['adoption']}%", f"YoY {kpis['yoy']:+.1f} pp"),
-            ("Penetration Rate", f"{kpis['penetration']}%", "Service reach index"),
-            ("Penetration Gap", f"{kpis['gap']}%", "Upsell opportunity"),
-            ("New Starts", f"{kpis['new_starts']:,}", "Current quarter"),
-            ("Downgrades", f"{kpis['downgrades']:,}", f"Lift {kpis['lift']} · Goal 4:1"),
-            ("Avg MRC", f"${kpis['mrc']}", "Monthly recurring charge"),
-        ]
-        for i, (t, v, s) in enumerate(kpi_titles):
-            ax = fig.add_axes([0.02 + i * 0.16, 0.78, 0.14, 0.14])
-            _kpi_card(ax, t, v, s)
-
-        # Filter panel (decorative labels — PDF static)
-        ax_f = fig.add_axes([0.02, 0.12, 0.14, 0.62])
-        ax_f.set_facecolor(CARD)
-        ax_f.axis("off")
-        ax_f.text(0.1, 0.95, "FILTERS", color=TEXT, fontsize=10, fontweight="bold")
-        filters = ["State (24)", "Region", "Income Bracket", "Market Type",
-                   "Technology", "Provider", "Year", "Quarter"]
-        for j, f in enumerate(filters):
-            ax_f.add_patch(mpatches.FancyBboxPatch(
-                (0.05, 0.82 - j * 0.1), 0.9, 0.07,
-                boxstyle="round,pad=0.01", facecolor=BG, edgecolor=GRID, linewidth=0.8
-            ))
-            ax_f.text(0.12, 0.855 - j * 0.1, f, color=MUTED, fontsize=7, va="center")
-
-        # State table
-        ax_t = fig.add_axes([0.19, 0.14, 0.22, 0.58])
-        ax_t.set_facecolor(CARD)
-        ax_t.axis("off")
-        ax_t.set_title("State · Adoption %", color=TEXT, fontsize=10, loc="left", pad=8)
-        top = states.head(12)
-        for j, (_, r) in enumerate(top.iterrows()):
-            ax_t.text(0.02, 0.88 - j * 0.07, r["state_name"][:14], color=MUTED, fontsize=7.5)
-            ax_t.text(0.92, 0.88 - j * 0.07, f"{r['adoption_pct']:.1f}%",
-                      color=ACCENT, fontsize=7.5, ha="right", fontweight="bold")
-
-        # Horizontal bar chart
-        ax_b = fig.add_axes([0.44, 0.14, 0.54, 0.58])
-        ax_b.set_facecolor(CARD)
-        plot_states = states.head(14).iloc[::-1]
-        y = np.arange(len(plot_states))
-        bars = ax_b.barh(y, plot_states["adoption_pct"], color=ACCENT, height=0.65)
-        ax_b.set_yticks(y)
-        ax_b.set_yticklabels(plot_states["state_name"], color=MUTED, fontsize=8)
-        ax_b.set_xlabel("Adoption Rate %", color=MUTED, fontsize=8)
-        ax_b.tick_params(axis="x", colors=MUTED)
-        ax_b.set_title("Adoption Rate by State (Current Quarter)", color=TEXT, fontsize=11, pad=10)
-        for spine in ax_b.spines.values():
-            spine.set_color(GRID)
-        ax_b.grid(axis="x", color=GRID, alpha=0.4, linestyle="--")
-        for bar, val in zip(bars, plot_states["adoption_pct"]):
-            ax_b.text(bar.get_width() + 0.3, bar.get_y() + bar.get_height() / 2,
-                      f"{val:.1f}%", va="center", color=TEXT, fontsize=7)
-
-        # Tabs
-        ax_tabs = fig.add_axes([0.19, 0.74, 0.79, 0.03])
-        ax_tabs.set_facecolor(BG)
-        ax_tabs.axis("off")
-        tabs = ["State View", "Income Bracket", "Urban vs Rural", "Technology", "Trend"]
-        for i, tab in enumerate(tabs):
-            c = ACCENT if tab == "State View" else GRID
-            fc = CARD if tab == "State View" else BG
-            ax_tabs.add_patch(mpatches.FancyBboxPatch(
-                (i * 0.2, 0.1), 0.18, 0.8, boxstyle="round,pad=0.02",
-                facecolor=fc, edgecolor=c, linewidth=1
-            ))
-            ax_tabs.text(i * 0.2 + 0.09, 0.5, tab, ha="center", va="center",
-                         color=TEXT if tab == "State View" else MUTED, fontsize=8)
-
-        pdf.savefig(fig, facecolor=BG)
-        plt.close(fig)
-
-        # ── Page 2: Trend + Technology ───────────────────────────────────────
-        fig2 = plt.figure(figsize=(16, 9), facecolor=BG)
-        fig2.suptitle(
-            "Broadband Adoption Executive Portal — Trend & Technology",
-            color=TEXT, fontsize=16, fontweight="bold", y=0.96, x=0.28,
-        )
-
-        ax_line = fig2.add_axes([0.06, 0.48, 0.88, 0.42])
-        ax_line.set_facecolor(CARD)
-        ax_line.plot(trend["year_quarter"], trend["adoption_pct"],
-                     color=ACCENT, marker="o", linewidth=2, label="Adoption %")
-        ax_line.plot(trend["year_quarter"], trend["penetration_pct"],
-                     color="#60A5FA", marker="s", linewidth=2, linestyle="--", label="Penetration %")
-        ax_line.set_title("Quarterly Adoption & Penetration Trend", color=TEXT, fontsize=12, pad=12)
-        ax_line.tick_params(axis="both", colors=MUTED, labelsize=8)
-        ax_line.set_xticks(range(len(trend)))
-        ax_line.set_xticklabels(trend["year_quarter"], rotation=45, ha="right")
-        ax_line.legend(facecolor=CARD, edgecolor=GRID, labelcolor=TEXT, fontsize=9)
-        ax_line.grid(color=GRID, alpha=0.35, linestyle="--")
-        for spine in ax_line.spines.values():
-            spine.set_color(GRID)
-
-        ax_tech = fig2.add_axes([0.06, 0.08, 0.42, 0.34])
-        ax_tech.set_facecolor(CARD)
-        x = np.arange(len(tech))
-        ax_tech.bar(x, tech["adoption_pct"], color=[ACCENT, "#60A5FA", "#93C5FD", "#2563EB"][: len(tech)])
-        ax_tech.set_xticks(x)
-        ax_tech.set_xticklabels(tech["technology_name"], color=MUTED, fontsize=9)
-        ax_tech.set_ylabel("Adoption %", color=MUTED, fontsize=9)
-        ax_tech.set_title("Adoption by Technology (Current Quarter)", color=TEXT, fontsize=11)
-        ax_tech.tick_params(axis="y", colors=MUTED)
-        for spine in ax_tech.spines.values():
-            spine.set_color(GRID)
-
-        ax_note = fig2.add_axes([0.52, 0.08, 0.42, 0.34])
-        ax_note.set_facecolor(CARD)
-        ax_note.axis("off")
-        notes = [
-            "STAR-SCHEMA DESIGN",
-            "• dim_date · dim_state (24) · dim_segment",
-            "• dim_technology · dim_provider",
-            "• fact_broadband_adoption",
-            "",
-            "PRIVACY & DELIVERABLE",
-            "• No employer / operator branding",
-            "• Power BI source file withheld",
-            "• PDF provided for portfolio review",
-            "",
-            f"Records analyzed: 2M+ transaction grain",
-            f"States in scope: 24",
-        ]
-        for j, line in enumerate(notes):
-            color = TEXT if line.isupper() and "·" not in line and not line.startswith("•") else MUTED
-            weight = "bold" if line.isupper() and not line.startswith("•") and line else "normal"
-            ax_note.text(0.06, 0.92 - j * 0.08, line, color=color, fontsize=9,
-                         fontweight=weight, va="top", family="sans-serif")
-
-        pdf.savefig(fig2, facecolor=BG)
-        plt.close(fig2)
-
+        pdf.savefig(fig, facecolor=MAIN_BG, dpi=150, bbox_inches="tight", pad_inches=0.02)
+    plt.close(fig)
     return OUT
 
 

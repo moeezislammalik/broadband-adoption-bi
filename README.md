@@ -12,13 +12,14 @@
 
 ### [Download Executive Dashboard PDF](docs/executive-dashboard.pdf)
 
-The PDF includes:
+The PDF replicates the **exact executive BI layout** (blue sidebar, 4 KPI cards, 8 slicers, tab bar, Mgmt Area table + horizontal bar chart). Company branding is **ConnectOne Business Intelligence** (de-identified — not the original operator).
 
-- **Adoption rate**, **penetration**, **penetration gap**, and **YoY trend** KPIs  
-- **State View** — ranked adoption across 24 states (table + bar chart)  
-- **Trend monitoring** — quarterly adoption & penetration lines  
-- **Technology breakdown** — fiber, cable, DSL, fixed wireless  
-- Professional **dark executive theme** (de-identified; no employer branding)
+Includes:
+
+- **New Starts**, **Downgrades**, **Lift Ratio (NS:DG)**, **Avg MRC** KPI scorecards  
+- **Mgmt Area** / **HSD Balance** table with **Count of SingleviewAccount by Mgmt Area** bar chart  
+- Same slicer and tab names as the reference telecom executive template  
+- **Due to privacy reasons**, no `.pbix` file is published
 
 See [`docs/PRIVACY.md`](docs/PRIVACY.md) for the full privacy policy.
 
