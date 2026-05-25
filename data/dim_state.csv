@@ -1,0 +1,25 @@
+state_key,state_name,region,population_k,target_penetration_pct
+AL,Alabama,Northeast,7895,67.2
+AZ,Arizona,Northeast,4823,75.6
+AR,Arkansas,West,9611,72.3
+CO,Colorado,Midwest,2621,88.2
+GA,Georgia,Northeast,4000,80.9
+ID,Idaho,Midwest,11086,90.0
+IA,Iowa,Midwest,9181,80.4
+KS,Kansas,Midwest,10015,76.9
+KY,Kentucky,South,4462,75.0
+LA,Louisiana,Northeast,3180,70.1
+MN,Minnesota,Northeast,5512,77.2
+MS,Mississippi,West,746,81.2
+MO,Missouri,West,4763,75.0
+MT,Montana,South,7381,67.7
+NE,Nebraska,Midwest,4019,74.6
+NV,Nevada,West,10570,68.1
+NM,New Mexico,Midwest,7516,85.1
+NC,North Carolina,South,11393,72.0
+OK,Oklahoma,Midwest,5533,78.3
+SC,South Carolina,Northeast,4240,88.1
+TN,Tennessee,South,4177,82.2
+TX,Texas,Northeast,8589,69.6
+UT,Utah,Midwest,6221,68.6
+WI,Wisconsin,Midwest,2753,78.8

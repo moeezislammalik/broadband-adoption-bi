@@ -1,0 +1,100 @@
+// Broadband Adoption Executive — DAX Measure Library
+// Import into Power BI semantic model (Broadband_Adoption_Executive)
+
+// ─── Adoption & Penetration ───────────────────────────────────────────────
+
+Adoption Rate % =
+DIVIDE (
+    SUM ( fact_broadband_adoption[households_adopted] ),
+    SUM ( fact_broadband_adoption[households_total] )
+)
+
+Penetration Rate % =
+AVERAGE ( fact_broadband_adoption[penetration_rate] )
+
+Penetration Gap % =
+[Penetration Rate %] - [Adoption Rate %]
+
+Target Penetration % =
+AVERAGE ( dim_state[target_penetration_pct] ) / 100
+
+Adoption vs Target =
+[Adoption Rate %] - [Target Penetration %]
+
+// ─── Executive KPI Cards ────────────────────────────────────────────────────
+
+Total Households =
+SUM ( fact_broadband_adoption[households_total] )
+
+Adopted Households =
+SUM ( fact_broadband_adoption[households_adopted] )
+
+New Starts =
+SUM ( fact_broadband_adoption[new_starts] )
+
+Downgrades =
+SUM ( fact_broadband_adoption[downgrades] )
+
+Lift Ratio (NS:DG) =
+DIVIDE ( [New Starts], [Downgrades] )
+
+Lift Ratio Label =
+"1:" & FORMAT ( ROUND ( DIVIDE ( [Downgrades], [New Starts], 0 ), 0 ), "0" )
+
+Success Goal Label =
+"Success Goal — 4:1"
+
+Avg MRC USD =
+AVERAGE ( fact_broadband_adoption[avg_mrc_usd] )
+
+// ─── Trend Monitoring ───────────────────────────────────────────────────────
+
+Adoption Rate PY =
+CALCULATE (
+    [Adoption Rate %],
+    SAMEPERIODLASTYEAR ( dim_date[date] )
+)
+
+Adoption YoY Change pp =
+[Adoption Rate %] - [Adoption Rate PY]
+
+Penetration Rate PY =
+CALCULATE (
+    [Penetration Rate %],
+    SAMEPERIODLASTYEAR ( dim_date[date] )
+)
+
+Penetration YoY Change pp =
+[Penetration Rate %] - [Penetration Rate PY]
+
+Adoption Trend Arrow =
+IF (
+    [Adoption YoY Change pp] > 0,
+    "▲",
+    IF ( [Adoption YoY Change pp] < 0, "▼", "●" )
+)
+
+// ─── Ranking (State bar chart) ───────────────────────────────────────────────
+
+State Adoption Rank =
+RANKX (
+    ALLSELECTED ( dim_state[state_name] ),
+    [Adoption Rate %],
+    ,
+    DESC,
+    DENSE
+)
+
+Top State Adoption =
+CALCULATE (
+    MAX ( dim_state[state_name] ),
+    TOPN ( 1, ALL ( dim_state ), [Adoption Rate %] )
+)
+
+// ─── Context titles ─────────────────────────────────────────────────────────
+
+Report Subtitle =
+"Executive views · Adoption rate · Penetration · Trend monitoring · 24 states"
+
+Selected Period Label =
+SELECTEDVALUE ( dim_date[year_quarter], "All periods" )

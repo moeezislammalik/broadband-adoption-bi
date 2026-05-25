@@ -1,0 +1,23 @@
+{
+  "name": "Broadband Executive Dark",
+  "dataColors": ["#3B82F6", "#60A5FA", "#93C5FD", "#2563EB", "#1D4ED8", "#10B981", "#F59E0B", "#EF4444"],
+  "background": "#1B2838",
+  "foreground": "#F8FAFC",
+  "tableAccent": "#3B82F6",
+  "visualStyles": {
+    "*": {
+      "*": {
+        "background": [{ "color": { "solid": { "color": "#243447" } }, "transparency": 0 }],
+        "border": [{ "color": { "solid": { "color": "#334155" } }, "radius": 6 }],
+        "title": [{ "fontColor": { "solid": { "color": "#F8FAFC" } }, "fontSize": 11 }],
+        "labels": [{ "color": { "solid": { "color": "#E2E8F0" } } }]
+      }
+    },
+    "card": {
+      "*": {
+        "labels": [{ "fontSize": 28 }],
+        "categoryLabels": [{ "show": true, "color": { "solid": { "color": "#94A3B8" } } }]
+      }
+    }
+  }
+}

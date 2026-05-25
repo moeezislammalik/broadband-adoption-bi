@@ -1,0 +1,5 @@
+technology_key,technology_name,speed_tier
+FIBER,Fiber,1 Gbps+
+CABLE,Cable,500 Mbps
+DSL,DSL,100 Mbps
+FWA,Fixed Wireless,300 Mbps

@@ -1,0 +1,7 @@
+segment_key,segment_name,market_type,income_bracket
+URBAN,Urban,Metro,All
+SUBURB,Suburban,Metro,All
+RURAL,Rural,Non-Metro,All
+LOW_INC,Low Income,All,Low
+MID_INC,Middle Income,All,Middle
+HIGH_INC,High Income,All,High
